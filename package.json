@@ -1,0 +1,28 @@
+{
+  "name": "@newkub/kogit",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun dist/index.js",
+    "dev": "bun --watch src/index.ts",
+    "build": "tsdown",
+    "lint": "biome lint --write && tsc --noEmit",
+    "test": "bun test",
+    "release": "release-it"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.41.0",
+    "@clack/prompts": "^0.10.1",
+    "@google/generative-ai": "^0.24.1",
+    "node-fzf": "^0.14.0",
+    "openai": "^4.98.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/node": "^22.15.17",
+    "release-it": "^19.0.2",
+    "tsdown": "^0.11.1",
+    "typescript": "^5.8.3"
+  }
+}
