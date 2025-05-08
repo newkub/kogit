@@ -1,17 +1,22 @@
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
-import { spawn } from 'child_process';
+import { execa } from 'execa';
 
 export async function commit() {
   p.intro(pc.blue('📝 Commit Mode'));
   
-  const message = await p.text({
+  const messageResult = await p.text({
     message: 'Enter commit message',
     placeholder: 'fix: bug in login page',
   });
   
-  if (p.isCancel(message)) {
+  if (p.isCancel(messageResult)) {
     p.cancel('Commit cancelled');
+    return;
+  }
+  
+  if (!messageResult || messageResult === '') {
+    p.outro(pc.red('❌ Commit message cannot be empty'));
     return;
   }
   
@@ -19,27 +24,19 @@ export async function commit() {
   s.start('Committing changes...');
   
   try {
-    await executeGitCommit(message);
+    await executeGitCommit(messageResult);
     s.stop('Commit completed');
-    p.outro(pc.green(`✅ Commit "${message}" completed!`));
+    p.outro(pc.green(`✅ Commit "${messageResult}" completed!`));
   } catch (error) {
     s.stop('Commit failed');
     p.outro(pc.red(`❌ Failed to commit: ${error instanceof Error ? error.message : String(error)}`));
   }
 }
 
-async function executeGitCommit(message: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn('git', ['commit', '-m', message], {
-      stdio: 'inherit'
-    });
-
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`Git commit failed with code ${code}`));
-      }
-    });
-  });
-}
+const executeGitCommit = async (message: string): Promise<void> => {
+  try {
+    await execa('git', ['commit', '-m', message], { stdio: 'inherit' });
+  } catch (error) {
+    throw new Error(`Git commit failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};

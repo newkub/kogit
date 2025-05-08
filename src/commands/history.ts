@@ -1,138 +1,97 @@
-import { spawn } from 'child_process'
-import { cancel, isCancel, select } from '@clack/prompts'
-// @ts-ignore
-import fzf from 'node-fzf'
+import { execa } from 'execa';
+import fzf from 'node-fzf';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 
-export async function showGitHistory() {
-    try {
-        // ดึง git log ในรูปแบบที่เหมาะสำหรับ fzf
-        const logs = await getGitLogs()
+const execGitCommand = async (args: string[], options = { stdio: 'pipe' as const }) => {
+  try {
+    const { stdout } = await execa('git', args, options);
+    return stdout;
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  }
+};
 
-        // ใช้ fzf เพื่อเลือก commit
-        const result = await fzf({
-            list: logs,
-            mode: 'normal',
-            preview: true,
-            previewWindow: 'right:60%'
-        })
+const getGitLogs = async () => {
+  const output = await execGitCommand([
+    'log',
+    '--pretty=format:%h - %an, %ar : %s',
+    '--graph',
+    '--color=always',
+    '--max-count=100' // Limit to the most recent 100 commits for faster loading
+  ]);
+  
+  const lines = output.split('\n').filter(Boolean);
+  if (lines.length === 0) {
+    throw new Error('No commit history found');
+  }
+  return lines;
+};
 
-        if (!result || !result.selected) {
-            cancel('No commit selected');
-            return;
-        }
+const showCommitDetails = (hash: string) => 
+  execa('git', ['show', hash], { stdio: 'inherit' });
 
-        const commitHash = result.selected.value.split(' ')[0]
+const checkoutCommit = (hash: string) => 
+  execa('git', ['checkout', hash], { stdio: 'inherit' });
 
-        // ให้ผู้ใช้เลือก action ที่ต้องการ
-        const action = await select({
-            message: 'เลือก action ที่ต้องการ:',
-            options: [
-                { value: 'show', label: 'แสดงรายละเอียด commit' },
-                { value: 'checkout', label: 'Checkout commit นี้' },
-                { value: 'diff', label: 'แสดง diff จาก commit นี้' },
-            ]
-        })
+const showCommitDiff = (hash: string) => 
+  execa('git', ['diff', hash], { stdio: 'inherit' });
 
-        if (isCancel(action)) {
-            cancel('Operation cancelled.')
-            process.exit(0)
-        }
+const performCommitAction = (action: string, hash: string) => {
+  const actions = {
+    'show': () => showCommitDetails(hash),
+    'checkout': () => checkoutCommit(hash),
+    'diff': () => showCommitDiff(hash)
+  };
+  
+  return actions[action as keyof typeof actions]();
+};
 
-        // Execute action ตามที่เลือก
-        switch (action) {
-            case 'show':
-                await showCommitDetails(commitHash)
-                break
-            case 'checkout':
-                await checkoutCommit(commitHash)
-                break
-            case 'diff':
-                await showCommitDiff(commitHash)
-                break
-        }
-    } catch (error) {
-        cancel(`Error: ${error instanceof Error ? error.message : String(error)}`)
+export const showGitHistory = async () => {
+  try {
+    p.note('Loading git history...', 'Please wait');
+    const logs = await getGitLogs();
+
+    const result = await fzf({
+      list: logs,
+      mode: 'normal',
+      preview: true,
+      previewWindow: 'right:60%'
+    });
+
+    if (!result || !result.selected) {
+      p.cancel('No commit selected');
+      return;
     }
-}
 
-async function getGitLogs(): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-        const child = spawn('git', [
-            'log',
-            '--pretty=format:%h - %an, %ar : %s',
-            '--graph',
-            '--color=always'
-        ])
+    const commitHash = result.selected.value.split(' ')[0];
 
-        let output = ''
-        let errorOutput = ''
-        
-        child.stdout.on('data', (data) => {
-            output += data.toString()
-        })
-        
-        child.stderr.on('data', (data) => {
-            errorOutput += data.toString()
-        })
+    const action = await p.select({
+      message: 'เลือก action ที่ต้องการ:',
+      options: [
+        { value: 'show', label: 'แสดงรายละเอียด commit' },
+        { value: 'checkout', label: 'Checkout commit นี้' },
+        { value: 'diff', label: 'แสดง diff จาก commit นี้' },
+      ]
+    });
 
-        child.on('close', (code) => {
-            if (code === 0) {
-                const lines = output.split('\n').filter(Boolean)
-                if (lines.length === 0) {
-                    reject(new Error('No commit history found'))
-                } else {
-                    resolve(lines)
-                }
-            } else {
-                reject(new Error(errorOutput.trim() || `Git log failed with code ${code}`))
-            }
-        })
-    })
-}
+    if (p.isCancel(action)) {
+      p.cancel('Operation cancelled.');
+      process.exit(0);
+    }
 
-async function showCommitDetails(hash: string) {
-    const child = spawn('git', ['show', hash], {
-        stdio: 'inherit'
-    })
-
-    await new Promise((resolve) => {
-        child.on('close', resolve)
-    })
-}
-
-async function checkoutCommit(hash: string) {
-    const child = spawn('git', ['checkout', hash], {
-        stdio: 'inherit'
-    })
-
-    await new Promise((resolve) => {
-        child.on('close', resolve)
-    })
-}
-
-async function showCommitDiff(hash: string) {
-    const child = spawn('git', ['diff', hash], {
-        stdio: 'inherit'
-    })
-
-    await new Promise((resolve) => {
-        child.on('close', resolve)
-    })
-}
+    await performCommitAction(action as string, commitHash);
+  } catch (error) {
+    p.cancel(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
 
 export async function history() {
   p.intro(pc.blue('📜 History Mode'));
   
-  const s = p.spinner();
-  s.start('Loading history...');
-  
   try {
     await showGitHistory();
-    s.stop('History loaded');
   } catch (error) {
-    s.stop('Failed to load history');
     p.note(`Error: ${error instanceof Error ? error.message : String(error)}`, 'Git History');
   }
   
