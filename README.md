@@ -1,3 +1,5 @@
+> **Note:** <span style="color: red">This project is still under development and not yet ready for production use.</span>
+
 # Kogit
 
 Streamlined Git CLI tool for intuitive workflow management.
