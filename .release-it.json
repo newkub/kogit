@@ -1,10 +1,21 @@
 {
-	"name": "my-package",
+	"name": "@newkub/kogit",
 	"version": "1.0.0",
 	"scripts": {
 		"release": "release-it"
 	},
 	"devDependencies": {
 		"release-it": "^19.0.0"
+	},
+	"git": {
+		"requireCleanWorkingDir": true,
+		"requireUpstream": true,
+		"commitMessage": "chore: release v${version}"
+	},
+	"npm": {
+		"publish": false
+	},
+	"github": {
+		"release": true
 	}
 }
