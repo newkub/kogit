@@ -1,0 +1,2 @@
+- แต่ละไฟล์ใน src/commands เขียน code แบบ functional programming
+- อะไรที่ใช้ child_process ให้ใช้ execa แทน
